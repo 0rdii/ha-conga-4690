@@ -18,6 +18,10 @@ This project is an independent community integration. It is not affiliated with,
 - Spanish, English and Catalan translations.
 - UI setup through Home Assistant config flow.
 
+## Preview
+
+![Cecotec Conga 4690 in Home Assistant](assets/home-assistant-device.png)
+
 ## Installation With HACS
 
 1. Open HACS in Home Assistant.
