@@ -1,0 +1,18 @@
+{
+    "config": {
+        "flow_title": "Inicio de sesion Conga 4690",
+        "step": {
+            "login": {
+                "title": "Inicio de sesion Conga 4690",
+                "description": "Introduce las credenciales de la app Conga 4690.",
+                "data": {
+                    "username": "Usuario",
+                    "password": "Contrasena"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "No se ha podido iniciar sesion o listar robots."
+        }
+    }
+}

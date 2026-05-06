@@ -1,0 +1,13 @@
+{
+    "version": "1.0.0",
+    "domain": "cecotec_conga",
+    "name": "Cecotec Conga 4690",
+    "documentation": "https://github.com/0rdii/ha-conga-4690",
+    "issue_tracker": "https://github.com/0rdii/ha-conga-4690/issues",
+    "iot_class": "cloud_polling",
+    "requirements": ["requests>=2.31.0", "websocket-client>=1.7.0"],
+    "codeowners": [
+        "@0rdii"
+    ],
+    "config_flow": true
+}

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.vscode/
+.idea/
+*.zip
+*.log
+*.apk
+captures/
+apk_jadx/
+tools/
+REVERSE_ENGINEERING.md

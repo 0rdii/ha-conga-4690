@@ -1,0 +1,18 @@
+{
+    "config": {
+        "flow_title": "Conga 4690 Login",
+        "step": {
+            "login": {
+                "title": "Conga 4690 Login",
+                "description": "Use your Cecotec Conga 4690 app credentials.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Unable to log in or list robots."
+        }
+    }
+}

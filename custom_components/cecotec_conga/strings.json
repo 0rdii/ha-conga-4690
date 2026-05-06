@@ -1,0 +1,18 @@
+{
+    "config": {
+        "flow_title": "Conga 4690 Login",
+        "step": {
+            "login": {
+                "title": "Conga 4690 Login",
+                "description": "Use the same credentials you use with the Conga 4690 mobile app.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Unable to log in or list robots."
+        }
+    }
+}
