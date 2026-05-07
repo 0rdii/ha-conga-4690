@@ -29,17 +29,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     entities = []
 
     devices = hass.data[DOMAIN][config_entry.entry_id]["devices"]
-    plans = hass.data[DOMAIN][config_entry.entry_id]["plans"]
     lang = _language(hass)
 
     conga_data = hass.data[DOMAIN][config_entry.entry_id]
     for device in devices:
-        for plan in plans:
-            entities.append(
-                CongaVacuumPlanButton(
-                    hass, conga_data, plan, device["sn"], device["note_name"], lang
-                )
-            )
+        entities.append(CongaVacuumStartButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumStopButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumHomeButton(hass, conga_data, device["sn"], device["note_name"], lang))
 
@@ -82,12 +76,11 @@ class CongaEntity(Entity):
         self._enabled = False
 
 
-class CongaVacuumPlanButton(ButtonEntity, CongaEntity):
+class CongaVacuumStartButton(ButtonEntity, CongaEntity):
     def __init__(
         self,
         hass: HomeAssistant,
         conga_data: dict,
-        plan_name: str,
         sn: str,
         device_name: str,
         lang: str,
@@ -95,14 +88,13 @@ class CongaVacuumPlanButton(ButtonEntity, CongaEntity):
         self._hass = hass
         self._conga_data = conga_data
         self._conga_client = conga_data["controller"]
-        self._plan_name = plan_name
         self._device_name = device_name
         self._name = _format_name(
             self._device_name,
             "Iniciar limpieza" if lang == "es" else "Start cleaning",
         )
         self._sn = sn
-        self._unique_id = f"{self._device_name}_{self._plan_name}"
+        self._unique_id = f"{self._device_name}_start_cleaning"
         self._available = True
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
