@@ -24,11 +24,6 @@ ROOM_LABELS = {
     "Salón": {"es": "Salón", "en": "Living room"},
 }
 
-PLAN_LABELS = {
-    "Limpieza completa": {"es": "limpieza completa", "en": "full clean"},
-}
-
-
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Cecotec Conga sensor from a config entry."""
     entities = []
@@ -98,10 +93,9 @@ class CongaVacuumPlanButton(ButtonEntity, CongaEntity):
         self._conga_client = conga_data["controller"]
         self._plan_name = plan_name
         self._device_name = device_name
-        plan_label = PLAN_LABELS.get(self._plan_name, {}).get(lang, _lower_first(self._plan_name))
         self._name = _format_name(
             self._device_name,
-            f"Empezar {plan_label}" if lang == "es" else f"Start {plan_label}",
+            "Iniciar" if lang == "es" else "Start",
         )
         self._sn = sn
         self._unique_id = f"{self._device_name}_{self._plan_name}"
@@ -138,13 +132,11 @@ class CongaVacuumPlanButton(ButtonEntity, CongaEntity):
     async def async_press(self) -> None:
         status = await self._hass.async_add_executor_job(self._conga_client.update_shadows, self._sn)
         if status.get("mode") in RUNNING_MODES:
-            _LOGGER.info("Ignoring plan start because %s is already cleaning", self._device_name)
+            _LOGGER.info("Ignoring start because %s is already cleaning", self._device_name)
             return
 
-        _LOGGER.info(f"Running plan {self._plan_name} on {self._device_name}")
-        await self._hass.async_add_executor_job(
-            self._conga_client.start_plan, self._sn, self._plan_name
-        )
+        _LOGGER.info("Starting %s", self._device_name)
+        await self._hass.async_add_executor_job(self._conga_client.start, self._sn)
 
 
 class CongaVacuumRoomButton(ButtonEntity, CongaEntity):
@@ -292,9 +284,3 @@ def _language(hass: HomeAssistant) -> str:
 
 def _format_name(device_name: str, label: str) -> str:
     return f"{device_name} {label}"
-
-
-def _lower_first(value: str) -> str:
-    if not value:
-        return value
-    return value[0].lower() + value[1:]
