@@ -36,7 +36,6 @@ METHOD_SET_MODE = "set_mode"
 METHOD_SET_PREFERENCE = "set_preference"
 METHOD_SELECT_MAP_PLAN = "selectMapPlan"
 METHOD_SET_ROOM_CLEAN = "setRoomClean"
-METHOD_SET_ROOM_CLEAN_PLAN = "setRoomCleanPlan"
 
 MODE_AUTO = 0
 MODE_EDGE = 1
@@ -213,29 +212,29 @@ class Conga:
             raise CongaError(f"Unknown Conga room: {room_name}")
 
         device = self._device_for_sn(sn)
+        self._refresh_known_plans()
+        plan = self._plans.get("Limpieza completa")
+        if plan is not None:
+            self._transmit(
+                {
+                    "clientType": "ROBOT",
+                    "data": {
+                        "control": METHOD_SELECT_MAP_PLAN,
+                        "mapid": _to_int(plan.get("mapid") or self._shadow.get("mapHeadId")),
+                        "planid": _to_int(plan.get("planid"), default=1),
+                        "type": _to_int(plan.get("type"), default=0),
+                    },
+                    "targets": [device.robot_id],
+                }
+            )
         self._transmit(
             {
                 "clientType": "ROBOT",
                 "data": {
-                    "control": METHOD_SET_ROOM_CLEAN_PLAN,
-                    "order": {
-                        "roomPer": [
-                            {
-                                "room_id": room_id,
-                                "room_name": room_name,
-                                "cleanmode": 0,
-                                "windpower": 3,
-                                "waterlevel": 10,
-                                "twiceclean": 0,
-                                "carpet": 0,
-                                "room_material": 0,
-                                "room_type": 0,
-                                "sweep_mode": 0,
-                            }
-                        ],
-                        "virwallList": [],
-                        "arealist": [],
-                    },
+                    "control": METHOD_SET_ROOM_CLEAN,
+                    "clean_type": 0,
+                    "ctrlValue": VALUE_START,
+                    "roomsID": [room_id],
                 },
                 "targets": [device.robot_id],
             }
