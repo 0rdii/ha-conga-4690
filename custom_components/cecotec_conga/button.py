@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.button import ButtonEntity
 from homeassistant.helpers.entity import DeviceInfo, Entity
 
-from .utils import build_device_info
+from .utils import build_device_info, firmware_version_from_devices
 from .const import (
     BRAND,
     CONF_DEVICES,
@@ -61,7 +61,11 @@ class CongaEntity(Entity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return build_device_info(self._device_name, self._sn)
+        return build_device_info(
+            self._device_name,
+            self._sn,
+            firmware_version_from_devices(self._conga_data.get("devices", []), self._sn),
+        )
 
     @property
     def model(self):

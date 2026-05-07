@@ -14,7 +14,7 @@ from homeassistant.util import Throttle
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 
-from .utils import build_device_info
+from .utils import build_device_info, firmware_version_from_devices
 from .button import CongaEntity
 
 from .const import (
@@ -181,7 +181,11 @@ class CongaVacuum(StateVacuumEntity, CongaEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return build_device_info(self._name, self._sn)
+        return build_device_info(
+            self._name,
+            self._sn,
+            firmware_version_from_devices(self._conga_data.get("devices", []), self._sn),
+        )
 
     @property
     def icon(self):
