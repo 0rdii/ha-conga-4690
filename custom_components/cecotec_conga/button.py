@@ -36,6 +36,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         entities.append(CongaVacuumStartButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumStopButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumHomeButton(hass, conga_data, device["sn"], device["note_name"], lang))
+        for room_name in conga_data["controller"].list_rooms():
+            entities.append(
+                CongaVacuumRoomButton(
+                    hass,
+                    conga_data,
+                    room_name,
+                    device["sn"],
+                    device["note_name"],
+                    lang,
+                )
+            )
 
     async_add_entities(entities, update_before_add=True)
 
