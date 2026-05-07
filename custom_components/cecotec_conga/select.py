@@ -76,7 +76,7 @@ class CongaFanSpeedSelect(SelectEntity, CongaEntity):
             return
         self._set_shared_level(level)
         self._current_option = FAN_SPEEDS[_normalize_option_level(level, len(FAN_SPEEDS) - 1)]
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     def _set_shared_level(self, level: int) -> None:
         shared = self._conga_data.setdefault(SHARED_STATE, {}).setdefault(self._sn, {})
@@ -183,7 +183,7 @@ class CongaWaterLevelSelect(SelectEntity, CongaEntity):
             return
         self._set_shared_level(level)
         self._current_option = WATER_LEVELS[_normalize_option_level(level, len(WATER_LEVELS) - 1)]
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     def _set_shared_level(self, level: int) -> None:
         shared = self._conga_data.setdefault(SHARED_STATE, {}).setdefault(self._sn, {})

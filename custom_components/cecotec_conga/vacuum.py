@@ -37,7 +37,6 @@ SUPPORTED_FEATURES = (
     | VacuumEntityFeature.RETURN_HOME
     | VacuumEntityFeature.START
     | VacuumEntityFeature.PAUSE
-    | VacuumEntityFeature.BATTERY
     | VacuumEntityFeature.FAN_SPEED
     | VacuumEntityFeature.SEND_COMMAND
 )
@@ -129,26 +128,26 @@ class CongaVacuum(StateVacuumEntity, CongaEntity):
             return
         self._set_shared_level("fan_speed", level)
         self._fan_speed = _fan_speed_name(level)
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     def _handle_water_level_signal(self, sn: str, level: int) -> None:
         if sn != self._sn:
             return
         self._set_shared_level("water_level", level)
         self._water_level = _water_level_name(level)
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     def set_cached_fan_speed(self, level: int) -> None:
         """Update the cached fan speed without sending a robot command."""
         self._set_shared_level("fan_speed", level)
         self._fan_speed = _fan_speed_name(level)
-        self._hass.loop.call_soon_threadsafe(self.async_write_ha_state)
+        self.schedule_update_ha_state()
 
     def set_cached_water_level(self, level: int) -> None:
         """Update the cached water level without sending a robot command."""
         self._set_shared_level("water_level", level)
         self._water_level = _water_level_name(level)
-        self._hass.loop.call_soon_threadsafe(self.async_write_ha_state)
+        self.schedule_update_ha_state()
 
     def _set_shared_level(self, key: str, level: int) -> None:
         shared = self._conga_data.setdefault(SHARED_STATE, {}).setdefault(self._sn, {})
@@ -212,41 +211,6 @@ class CongaVacuum(StateVacuumEntity, CongaEntity):
         else:
             _LOGGER.warning(f"Unknown status: {self._state}")
             return STATE_ERROR
-
-    @property
-    def battery_level(self):
-        """Return the battery level of the vacuum cleaner."""
-        return self._battery
-
-    @property
-    def battery_icon(self):
-        """Return the battery icon for the vacuum cleaner."""
-        charging = ""
-        if self._state == "charge":
-            charging = "-charging"
-
-        battery = "-100"
-        if self._battery < 10:
-            battery = "-outline"
-        elif self._battery < 20:
-            battery = "-10"
-        elif self._battery < 30:
-            battery = "-20"
-        elif self._battery < 40:
-            battery = "-30"
-        elif self._battery < 50:
-            battery = "-40"
-        elif self._battery < 60:
-            battery = "-50"
-        elif self._battery < 70:
-            battery = "-60"
-        elif self._battery < 80:
-            battery = "-70"
-        elif self._battery < 90:
-            battery = "-80"
-        elif self._battery < 100:
-            battery = "-90"
-        return f"mdi:battery{charging}{battery}"
 
     @property
     def extra_state_attributes(self):

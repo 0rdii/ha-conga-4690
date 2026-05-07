@@ -2,8 +2,9 @@ from datetime import timedelta
 import logging
 from homeassistant.util import Throttle
 from homeassistant.core import HomeAssistant
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfArea,
     UnitOfTime,
 )
@@ -16,6 +17,13 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=5)
 _LOGGER = logging.getLogger(__name__)
 
 sensors = [
+    {
+        "id": "elec",
+        "name": {"es": "Bateria", "en": "Battery"},
+        "icon": "mdi:battery",
+        "unit": PERCENTAGE,
+        "device_class": SensorDeviceClass.BATTERY,
+    },
     {
         "id": "statusLabel",
         "name": {"es": "Estado", "en": "Status"},
@@ -116,6 +124,7 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
         self._unit_of_measurement = sensor['unit']
         self._name = f"{self._device_name} {sensor['name'][lang]}"
         self._icon = sensor['icon']
+        self._device_class = sensor.get("device_class")
         self._sn = sn
         self._state = None
         self._attribute_id = sensor['id']
@@ -147,6 +156,11 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
     def icon(self) -> str | None:
         """Icon of the entity."""
         return self._icon
+
+    @property
+    def device_class(self) -> SensorDeviceClass | None:
+        """Return the device class."""
+        return self._device_class
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
