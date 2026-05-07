@@ -95,7 +95,7 @@ class CongaVacuumPlanButton(ButtonEntity, CongaEntity):
         self._device_name = device_name
         self._name = _format_name(
             self._device_name,
-            "Iniciar" if lang == "es" else "Start",
+            "Iniciar limpieza" if lang == "es" else "Start cleaning",
         )
         self._sn = sn
         self._unique_id = f"{self._device_name}_{self._plan_name}"
