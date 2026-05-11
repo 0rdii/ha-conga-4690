@@ -10,6 +10,7 @@ from typing import Any
 
 import requests
 import websocket
+from websocket import WebSocketException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ METHOD_SET_MODE = "set_mode"
 METHOD_SET_PREFERENCE = "set_preference"
 METHOD_SELECT_MAP_PLAN = "selectMapPlan"
 METHOD_SET_ROOM_CLEAN = "setRoomClean"
+METHOD_SET_ORDER_6090 = "setOrder6090"
 
 MODE_AUTO = 0
 MODE_EDGE = 1
@@ -62,6 +64,7 @@ FAULT_ROBOT_USER_GO_HOME = 2104
 FAULT_ROBOT_CHARGE_FINISH = 2105
 
 DEFAULT_TIMEOUT = 20
+TRANSIENT_START_ERROR_SECONDS = 30
 
 
 class CongaError(RuntimeError):
@@ -109,6 +112,8 @@ class Conga:
         self._devices: list[Device] = []
         self._shadow: dict[str, Any] = {}
         self._last_shadow_update = 0.0
+        self._optimistic_mode: str | None = None
+        self._optimistic_mode_until = 0.0
         self._plans: dict[str, dict[str, Any]] = {}
         self._rooms: dict[str, int] = {
             "Cocina": 10,
@@ -207,6 +212,7 @@ class Conga:
         self._set_mode(sn, MODE_AUTO, VALUE_START)
 
     def start_room(self, sn: str, room_name: str) -> None:
+        room_name = _normalize_room_name(room_name)
         room_id = self._rooms.get(room_name)
         if room_id is None:
             raise CongaError(f"Unknown Conga room: {room_name}")
@@ -241,12 +247,78 @@ class Conga:
         )
         self._last_shadow_update = 0.0
 
+    def create_room_plan(
+        self,
+        sn: str,
+        room_name: str,
+        plan_name: str,
+        day_time: int,
+        weekdays: int = 127,
+        enabled: bool = True,
+        fan_speed: int = 3,
+        water_level: int = 10,
+        twice_clean: bool = False,
+    ) -> int:
+        room_name = _normalize_room_name(room_name)
+        room_id = self._rooms.get(room_name)
+        if room_id is None:
+            raise CongaError(f"Unknown Conga room: {room_name}")
+
+        self.update_shadows(sn)
+        map_id = _to_int(self._shadow.get("mapHeadId")) or 1775925730
+        order_id = int(time.time())
+        device = self._device_for_sn(sn)
+        self._transmit(
+            {
+                "clientType": "ROBOT",
+                "targets": [device.robot_id],
+                "data": {
+                    "control": METHOD_SET_ORDER_6090,
+                    "order": {
+                        "enable": 1 if enabled else 0,
+                        "repeat": 1,
+                        "orderid": order_id,
+                        "order_name": plan_name or f"HA {room_name}",
+                        "weekday": max(0, min(_to_int(weekdays, default=127), 127)),
+                        "day_time": max(0, min(_to_int(day_time), 1439)),
+                        "mapid": map_id,
+                        "roomPer": [
+                            {
+                                "room_id": room_id,
+                                "room_name": room_name,
+                                "cleanmode": 0,
+                                "sweep_mode": 0,
+                                "windpower": max(0, min(_to_int(fan_speed, default=3), 3)),
+                                "waterlevel": _to_int(water_level, default=10),
+                                "twiceclean": 1 if twice_clean else 0,
+                                "carpet": 0,
+                                "room_material": 0,
+                                "room_type": 0,
+                                "isDone": False,
+                                "isExist": True,
+                                "isExpland": False,
+                            }
+                        ],
+                        "virwallList": [],
+                        "arealist": [],
+                    },
+                },
+            }
+        )
+        return order_id
+
     def close(self) -> None:
+        self._close_socket()
+
+    def _close_socket(self) -> None:
         with self._lock:
             if self._ws is not None:
-                self._ws.close()
+                try:
+                    self._ws.close()
+                except Exception:
+                    pass
                 self._ws = None
-                self._logged_in = False
+            self._logged_in = False
 
     def _set_mode(self, sn: str, mode_type: int, value: int) -> None:
         device = self._device_for_sn(sn)
@@ -257,6 +329,12 @@ class Conga:
                 "data": _device_ctrl_data(METHOD_SET_MODE, mode_type, value),
             }
         )
+        if value == VALUE_START:
+            self._optimistic_mode = "backcharge" if mode_type == MODE_BACK_CHARGE else "sweep"
+            self._optimistic_mode_until = time.time() + TRANSIENT_START_ERROR_SECONDS
+        else:
+            self._optimistic_mode = None
+            self._optimistic_mode_until = 0.0
         self._last_shadow_update = 0.0
 
     def _set_preference(self, sn: str, preference: int, value: int) -> None:
@@ -296,47 +374,54 @@ class Conga:
         token: str | None = None,
         retry_login: bool = True,
     ) -> dict[str, Any]:
-        self._ensure_socket()
-        self._send_heartbeat_if_needed()
+        try:
+            self._ensure_socket()
+            self._send_heartbeat_if_needed()
 
-        trace_id = str(int(time.time() * 1000))
-        packet = {
-            "traceId": trace_id,
-            "method": method,
-            "service": service,
-            "content": content,
-        }
+            trace_id = str(int(time.time() * 1000))
+            packet = {
+                "traceId": trace_id,
+                "method": method,
+                "service": service,
+                "content": content,
+            }
 
-        with self._lock:
-            assert self._ws is not None
-            _LOGGER.debug("3irobotix request %s", packet)
-            self._ws.send(json.dumps(packet, separators=(",", ":")))
-            deadline = time.time() + DEFAULT_TIMEOUT
-            while time.time() < deadline:
-                raw = self._ws.recv()
-                if isinstance(raw, bytes):
-                    _LOGGER.debug("Ignoring binary frame of %s bytes", len(raw))
-                    continue
-                _LOGGER.debug("3irobotix response %s", raw)
-                response = json.loads(raw)
-                if response.get("service") == SERVICE_HEARTBEAT:
-                    continue
-                if response.get("traceId") == trace_id:
-                    code = _to_int(response.get("code"), default=-1)
-                    if code not in (0, -1):
-                        message = response.get("msg") or raw
-                        if retry_login and service not in (SERVICE_LOGIN, SERVICE_LOGIN_TOKEN) and _is_login_required(message):
-                            _LOGGER.debug("3irobotix session expired during %s, logging in again", service)
-                            self._logged_in = False
-                            self._ensure_logged_in()
-                            return self._request(method, service, content, token, retry_login=False)
-                        if service in (SERVICE_LOGIN, SERVICE_LOGIN_TOKEN):
-                            raise CongaAuthError(message)
-                        raise CongaError(message)
-                    return response
-                self._handle_push(response)
+            with self._lock:
+                assert self._ws is not None
+                _LOGGER.debug("3irobotix request %s", packet)
+                self._ws.send(json.dumps(packet, separators=(",", ":")))
+                deadline = time.time() + DEFAULT_TIMEOUT
+                while time.time() < deadline:
+                    raw = self._ws.recv()
+                    if isinstance(raw, bytes):
+                        _LOGGER.debug("Ignoring binary frame of %s bytes", len(raw))
+                        continue
+                    _LOGGER.debug("3irobotix response %s", raw)
+                    response = json.loads(raw)
+                    if response.get("service") == SERVICE_HEARTBEAT:
+                        continue
+                    if response.get("traceId") == trace_id:
+                        code = _to_int(response.get("code"), default=-1)
+                        if code not in (0, -1):
+                            message = response.get("msg") or raw
+                            if retry_login and service not in (SERVICE_LOGIN, SERVICE_LOGIN_TOKEN) and _is_login_required(message):
+                                _LOGGER.debug("3irobotix session expired during %s, logging in again", service)
+                                self._token = None
+                                self._user_id = None
+                                self._logged_in = False
+                                self._ensure_logged_in()
+                                return self._request(method, service, content, token, retry_login=False)
+                            if service in (SERVICE_LOGIN, SERVICE_LOGIN_TOKEN):
+                                raise CongaAuthError(message)
+                            raise CongaError(message)
+                        return response
+                    self._handle_push(response)
+        except (OSError, TimeoutError, WebSocketException, json.JSONDecodeError) as exc:
+            self._close_socket()
+            raise CongaError(f"Connection to Cecotec cloud lost: {exc}") from exc
 
-        raise TimeoutError(f"Timed out waiting for {service}")
+        self._close_socket()
+        raise CongaError(f"Timed out waiting for {service}")
 
     def _ensure_logged_in(self) -> None:
         self._ensure_socket()
@@ -351,9 +436,14 @@ class Conga:
                     "lang": "en",
                 }
             )
-            self._request("POST", SERVICE_LOGIN_TOKEN, json.dumps(payload, separators=(",", ":")))
-            self._logged_in = True
-            return
+            try:
+                self._request("POST", SERVICE_LOGIN_TOKEN, json.dumps(payload, separators=(",", ":")))
+                self._logged_in = True
+                return
+            except CongaError as exc:
+                _LOGGER.debug("Token login failed, falling back to full login: %s", exc)
+                self._token = None
+                self._user_id = None
 
         payload = _base_payload()
         payload.update(
@@ -476,6 +566,10 @@ class Conga:
         charge_status = _to_int(status.get("chargeStatus"), default=0)
         fault = _to_int(status.get("faultCode") or status.get("fault"), default=0)
 
+        normalized_mode = _status_name(mode, clean_type, charge_status, fault)
+        if normalized_mode == "error" and time.time() < self._optimistic_mode_until:
+            normalized_mode = self._optimistic_mode or normalized_mode
+
         return {
             "connected": _to_int(device.raw.get("status"), default=1) != 0,
             "robot_id": device.robot_id,
@@ -483,7 +577,7 @@ class Conga:
             "name": device.name,
             "elec": battery,
             "battery": battery,
-            "mode": _status_name(mode, clean_type, charge_status, fault),
+            "mode": normalized_mode,
             "workMode": mode,
             "type": clean_type,
             "chargeStatus": charge_status,
@@ -587,6 +681,19 @@ def _normalize_area(value: Any) -> float:
     # Conga 4690 reports cleanSize as centi-square-meters: 528 means 5.28 m2.
     area = _to_int(value)
     return round(area / 100, 2)
+
+
+def _normalize_room_name(value: Any) -> str:
+    room = str(value or "").strip()
+    normalized = room.casefold()
+    aliases = {
+        "cocina": "Cocina",
+        "comedor": "Comedor",
+        "pasillo": "Pasillo",
+        "salon": "Salón",
+        "salón": "Salón",
+    }
+    return aliases.get(normalized, room)
 
 
 def _status_name(work_mode: int, clean_type: int, charge_status: int, fault: int) -> str:

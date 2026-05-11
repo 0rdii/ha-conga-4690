@@ -1,0 +1,77 @@
+create_room_plan:
+  name: Create room plan
+  description: Create a scheduled room-cleaning plan in the Cecotec app.
+  fields:
+    room:
+      name: Room
+      description: Room to include in the plan.
+      required: true
+      selector:
+        select:
+          options:
+            - Cocina
+            - Comedor
+            - Pasillo
+            - Salón
+    name:
+      name: Plan name
+      description: Name shown in the Cecotec app.
+      required: false
+      selector:
+        text:
+    time:
+      name: Time
+      description: Time when the plan should run.
+      required: true
+      selector:
+        time:
+    weekdays:
+      name: Weekdays
+      description: App weekday mask. Use 127 for every day.
+      required: false
+      default: 127
+      selector:
+        number:
+          min: 0
+          max: 127
+          mode: box
+    enabled:
+      name: Enabled
+      description: Whether the plan is enabled after creation.
+      required: false
+      default: true
+      selector:
+        boolean:
+    fan_speed:
+      name: Fan speed
+      description: Vacuum fan speed from 0 to 3.
+      required: false
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 3
+          mode: slider
+    water_level:
+      name: Water level
+      description: Mop water level. Use 10 for off.
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 10
+          mode: box
+    twice_clean:
+      name: Twice clean
+      description: Clean the selected room twice.
+      required: false
+      default: false
+      selector:
+        boolean:
+    sn:
+      name: Serial number
+      description: Optional robot serial number when the account has more than one robot.
+      required: false
+      selector:
+        text:
