@@ -49,6 +49,58 @@ The integration asks for the same account credentials used by the Cecotec mobile
 
 The cloud service may allow only one active session at a time. If the mobile app is opened, Home Assistant can be logged out temporarily; the integration retries login automatically when needed.
 
+## Robot Maintenance Tools
+
+The `tools` folder includes optional SSH utilities for the robot. They do not contain a fixed IP address or password and are not required for the Home Assistant integration to work.
+
+### Cloud Watchdog
+
+Some Conga robots keep the local Linux system running but lose the cloud connection used by the official app and this integration. The watchdog is a small script installed on the robot that checks that cloud connection and reboots the robot only after repeated failures.
+
+The watchdog avoids rebooting the robot while it is actively cleaning.
+
+### Windows Step By Step
+
+1. Find your robot IP address in your router device list. It will usually look like `192.168.1.xxx`.
+2. Download this repository and unzip it.
+3. Open the `tools` folder.
+4. Double-click `install_watchdog_windows.bat`.
+5. Enter the robot IP address when asked.
+6. Enter the SSH user. Press Enter to use the default user, `root`.
+7. Enter the SSH password. Try the passwords listed below for your model.
+8. Wait until the script says `Watchdog installed.`
+
+The Windows launcher uses Python if it is already installed. If the Python dependency `paramiko` is missing, the script tries to install it automatically.
+
+To remove the watchdog later, double-click `remove_watchdog_windows.bat` and enter the same IP, user, and password.
+
+### Command Line
+
+Install the watchdog:
+
+```bash
+python tools/install_watchdog.py --host 192.168.1.75
+```
+
+Remove the watchdog:
+
+```bash
+python tools/remove_watchdog.py --host 192.168.1.75
+```
+
+### Known SSH Passwords
+
+These are known default passwords used by Conga/3irobotix robots. Your robot must already have SSH enabled.
+
+| Models | User | Password |
+| --- | --- | --- |
+| Conga 3090 | `root` | `3irobotics` |
+| Conga 3x90, 4090, 4690, 5490 family | `root` | `@3I#sc$RD%xm^2S&` |
+
+Source for the documented defaults: <https://congatudo.cloud/installation/robot-setup/>
+
+If neither password works, the robot may have a custom password, SSH may not be enabled, or the IP address may belong to a different device.
+
 ## Notes
 
 - Room cleaning buttons are intentionally not exposed in this release because the cloud API behavior is not reliable enough yet.

@@ -11,5 +11,4 @@ __pycache__/
 *.apk
 captures/
 apk_jadx/
-tools/
 REVERSE_ENGINEERING.md
