@@ -36,6 +36,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         entities.append(CongaVacuumStartButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumStopButton(hass, conga_data, device["sn"], device["note_name"], lang))
         entities.append(CongaVacuumHomeButton(hass, conga_data, device["sn"], device["note_name"], lang))
+        entities.append(CongaVacuumDustBinResetButton(hass, conga_data, device["sn"], device["note_name"], lang))
 
     async_add_entities(entities, update_before_add=True)
 
@@ -260,6 +261,39 @@ class CongaVacuumHomeButton(ButtonEntity, CongaEntity):
 
     async def async_press(self) -> None:
         await self._hass.async_add_executor_job(self._conga_client.home, self._sn)
+
+
+class CongaVacuumDustBinResetButton(ButtonEntity, CongaEntity):
+    def __init__(self, hass: HomeAssistant, conga_data: dict, sn: str, device_name: str, lang: str):
+        self._hass = hass
+        self._conga_data = conga_data
+        self._dustbin_meter = conga_data.get("dustbin_meter")
+        self._device_name = device_name
+        self._name = _format_name(
+            device_name,
+            "Deposito vaciado" if lang == "es" else "Dust bin emptied",
+        )
+        self._sn = sn
+        self._unique_id = f"{self._device_name}_dust_bin_emptied"
+        CongaEntity.__init__(self, conga_data, device_name, sn)
+        ButtonEntity.__init__(self)
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def icon(self) -> str:
+        return "mdi:delete-empty"
+
+    async def async_press(self) -> None:
+        if self._dustbin_meter is None:
+            return
+        await self._dustbin_meter.async_reset(self._sn)
 
 
 def _current_mode(conga_client, sn: str) -> str:

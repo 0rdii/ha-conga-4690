@@ -86,6 +86,18 @@ sensors = [
         "icon": "mdi:floor-plan",
         "unit": None,
     },
+    {
+        "id": "dustBinArea",
+        "name": {"es": "Area desde vaciado", "en": "Area since dust bin emptied"},
+        "icon": "mdi:trash-can-outline",
+        "unit": UnitOfArea.SQUARE_METERS,
+    },
+    {
+        "id": "dustBinStatus",
+        "name": {"es": "Deposito", "en": "Dust bin"},
+        "icon": "mdi:trash-can",
+        "unit": None,
+    },
 ]
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -120,6 +132,7 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
         self._hass = hass
         self._conga_data = conga_data
         self._conga_client = conga_data["controller"]
+        self._dustbin_meter = conga_data.get("dustbin_meter")
         self._device_name = device_name
         self._unit_of_measurement = sensor['unit']
         self._name = f"{self._device_name} {sensor['name'][lang]}"
@@ -168,11 +181,20 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
         try:
             self._conga_client.update_shadows(self._sn)
             state_all = self._conga_client.get_status()
+            if self._dustbin_meter is not None:
+                self._dustbin_meter.update(self._sn, state_all)
 
             if self._attribute_id == "statusLabel":
                 self._state = _status_label(state_all.get("mode"), self._lang)
             elif self._attribute_id == "cleaningRoomId":
                 self._state = _room_label(state_all.get("cleaningRoomId"), self._lang)
+            elif self._attribute_id == "dustBinArea" and self._dustbin_meter is not None:
+                self._state = self._dustbin_meter.area_since_empty(self._sn)
+            elif self._attribute_id == "dustBinStatus" and self._dustbin_meter is not None:
+                self._state = _dustbin_status(
+                    self._dustbin_meter.is_full_recommended(self._sn),
+                    self._lang,
+                )
             else:
                 self._state = state_all.get(self._attribute_id)
 
@@ -212,3 +234,9 @@ def _room_label(room_id, lang: str) -> str:
     if room_id == 0:
         return "Ninguna" if lang == "es" else "None"
     return rooms.get(room_id, {"es": f"Habitación {room_id}", "en": f"Room {room_id}"})[lang]
+
+
+def _dustbin_status(is_full: bool, lang: str) -> str:
+    if is_full:
+        return "Lleno" if lang == "es" else "Full"
+    return "Correcto" if lang == "es" else "OK"

@@ -8,11 +8,12 @@ from .const import (
     CONF_PASSWORD,
     DOMAIN,
 )
+from .dustbin import DustBinMeter
 
 import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["vacuum", "select", "button", "sensor", "binary_sensor"]
+PLATFORMS = ["vacuum", "select", "button", "sensor", "binary_sensor", "number"]
 
 SERVICE_CREATE_ROOM_PLAN = "create_room_plan"
 
@@ -59,10 +60,12 @@ async def async_setup_entry(hass, entry):
     if devices:
         await hass.async_add_executor_job(conga_client.update_shadows, devices[0]["sn"])
     plans = await hass.async_add_executor_job(conga_client.list_plans)
+    dustbin_meter = await DustBinMeter.async_create(hass, entry.entry_id)
 
     hass.data[DOMAIN][entry.entry_id] = {
         "controller": conga_client,
         "devices": devices,
+        "dustbin_meter": dustbin_meter,
         "plans": plans,
         "lastTimeSync": 0,
         "lastFirmwareCheck": 0,

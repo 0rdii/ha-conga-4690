@@ -20,6 +20,7 @@ LOG=/tmp/conga_cloud_watchdog.log
 APP_LOG=/mnt/UDISK/log/app_logfile.temp
 INTERVAL=60
 BAD_LIMIT=3
+STALE_LOG_LIMIT=600
 bad=0
 
 log() {
@@ -43,6 +44,23 @@ cloud_bad() {
     netstat -antup 2>/dev/null | grep 'RobotApp' | grep ':9090' | grep -q 'CLOSE_WAIT'
 }
 
+app_log_stale() {
+    [ -f "$APP_LOG" ] || return 1
+    now="$(date +%s 2>/dev/null)"
+    mtime="$(stat -c %Y "$APP_LOG" 2>/dev/null)"
+    [ -n "$now" ] && [ -n "$mtime" ] || return 1
+    age=$((now - mtime))
+    [ "$age" -ge "$STALE_LOG_LIMIT" ]
+}
+
+recover_robotapp() {
+    reason="$1"
+    pid="$(pidof RobotApp | awk '{print $1}')"
+    log "recovering RobotApp: $reason pid=$pid"
+    [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
+    sleep 30
+}
+
 robot_cleaning() {
     [ -f "$APP_LOG" ] || return 1
 
@@ -60,14 +78,14 @@ robot_cleaning() {
     tail -n 120 "$APP_LOG" 2>/dev/null | grep -q 'clean_roomId [1-9]'
 }
 
-log "watchdog started interval=${INTERVAL}s bad_limit=${BAD_LIMIT}"
+log "watchdog started interval=${INTERVAL}s bad_limit=${BAD_LIMIT} stale_log_limit=${STALE_LOG_LIMIT}s"
 
 while true; do
     state="$(robot_state)"
 
     if cloud_ok; then
         bad=0
-    elif [ "$state" = "D" ] || [ "$state" = "Z" ] || cloud_bad; then
+    elif [ "$state" = "D" ] || [ "$state" = "Z" ] || cloud_bad || app_log_stale; then
         bad=$((bad + 1))
         log "bad cloud state count=$bad robot_state=$state"
     else
@@ -81,8 +99,8 @@ while true; do
             sleep "$INTERVAL"
             continue
         fi
-        log "rebooting robot after persistent cloud failure"
-        echo b > /proc/sysrq-trigger
+        recover_robotapp "persistent cloud failure"
+        bad=0
     fi
 
     sleep "$INTERVAL"
