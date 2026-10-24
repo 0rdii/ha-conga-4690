@@ -16,14 +16,25 @@ import sys
 
 
 WATCHDOG_SCRIPT = r"""#!/bin/sh
-LOG=/tmp/conga_cloud_watchdog.log
+# Persistent storage, so the log survives the reboots it may trigger.
+LOG=/mnt/UDISK/log/conga_cloud_watchdog.log
+LOG_MAX_BYTES=200000
 APP_LOG=/mnt/UDISK/log/app_logfile.temp
 INTERVAL=60
 BAD_LIMIT=3
 STALE_LOG_LIMIT=600
+RESTART_WAIT=60
+MAX_RECOVERIES_PER_HOUR=3
 bad=0
+recoveries=0
+window_start="$(date +%s 2>/dev/null)"
 
 log() {
+    mkdir -p "$(dirname "$LOG")"
+    size="$(wc -c < "$LOG" 2>/dev/null)"
+    if [ -n "$size" ] && [ "$size" -ge "$LOG_MAX_BYTES" ]; then
+        mv -f "$LOG" "$LOG.1"
+    fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG"
 }
 
@@ -53,32 +64,55 @@ app_log_stale() {
     [ "$age" -ge "$STALE_LOG_LIMIT" ]
 }
 
-recover_robotapp() {
-    reason="$1"
-    pid="$(pidof RobotApp | awk '{print $1}')"
-    log "recovering RobotApp: $reason pid=$pid"
-    [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
-    sleep 30
+recovery_allowed() {
+    now="$(date +%s 2>/dev/null)"
+    if [ -n "$now" ] && [ -n "$window_start" ] && [ $((now - window_start)) -ge 3600 ]; then
+        window_start="$now"
+        recoveries=0
+    fi
+    [ "$recoveries" -lt "$MAX_RECOVERIES_PER_HOUR" ]
 }
 
-robot_cleaning() {
+recover_robotapp() {
+    reason="$1"
+    recoveries=$((recoveries + 1))
+    pid="$(pidof RobotApp | awk '{print $1}')"
+    log "recovering RobotApp ($recoveries/$MAX_RECOVERIES_PER_HOUR this hour): $reason pid=$pid"
+    [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
+
+    # The firmware is expected to respawn RobotApp. If it does not, the robot
+    # would stay without its main program, so reboot instead.
+    waited=0
+    while [ "$waited" -lt "$RESTART_WAIT" ]; do
+        sleep 5
+        waited=$((waited + 5))
+        if pidof RobotApp >/dev/null 2>&1; then
+            log "RobotApp running again after ${waited}s"
+            return
+        fi
+    done
+    log "RobotApp did not restart within ${RESTART_WAIT}s; rebooting"
+    sync
+    reboot
+}
+
+# Only recover when the robot is clearly docked or idle. Cleaning, returning,
+# stuck or in error, or an unknown state (no app log) all mean "leave it alone".
+robot_safe_to_recover() {
     [ -f "$APP_LOG" ] || return 1
 
     latest_mode="$(tail -n 400 "$APP_LOG" 2>/dev/null | grep 'systemSleepControl current_app_mode' | tail -n 1)"
 
     case "$latest_mode" in
-        *APP_MODE_AUTO*|*APP_MODE_PART*|*APP_MODE_SELECT*|*APP_MODE_ROOM*|*APP_MODE_ZONE*)
+        *APP_MODE_IDLE*|*APP_MODE_CHARGE*|*APP_MODE_SLEEP*)
+            tail -n 120 "$APP_LOG" 2>/dev/null | grep -q 'clean_roomId [1-9]' && return 1
             return 0
             ;;
-        *APP_MODE_IDLE*|*APP_MODE_CHARGE*|*APP_MODE_GO_HOME*|*APP_MODE_SLEEP*)
-            return 1
-            ;;
     esac
-
-    tail -n 120 "$APP_LOG" 2>/dev/null | grep -q 'clean_roomId [1-9]'
+    return 1
 }
 
-log "watchdog started interval=${INTERVAL}s bad_limit=${BAD_LIMIT} stale_log_limit=${STALE_LOG_LIMIT}s"
+log "watchdog started interval=${INTERVAL}s bad_limit=${BAD_LIMIT} stale_log_limit=${STALE_LOG_LIMIT}s max_recoveries_per_hour=${MAX_RECOVERIES_PER_HOUR}"
 
 while true; do
     state="$(robot_state)"
@@ -93,13 +127,13 @@ while true; do
     fi
 
     if [ "$bad" -ge "$BAD_LIMIT" ]; then
-        if robot_cleaning; then
-            log "cloud failure detected but robot is cleaning; skipping reboot"
-            bad=0
-            sleep "$INTERVAL"
-            continue
+        if ! robot_safe_to_recover; then
+            log "cloud failure detected but robot is not docked/idle; skipping recovery"
+        elif ! recovery_allowed; then
+            log "cloud failure detected but recovery limit reached this hour; skipping"
+        else
+            recover_robotapp "persistent cloud failure"
         fi
-        recover_robotapp "persistent cloud failure"
         bad=0
     fi
 

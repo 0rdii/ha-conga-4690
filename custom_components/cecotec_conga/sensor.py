@@ -16,6 +16,8 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=5)
 
 _LOGGER = logging.getLogger(__name__)
 
+LOCAL_SENSORS = {"dustBinArea", "dustBinStatus"}
+
 sensors = [
     {
         "id": "elec",
@@ -175,13 +177,21 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
         """Return the device class."""
         return self._device_class
 
+    @property
+    def available(self) -> bool:
+        # The dust bin counter is local, so it stays available offline.
+        if self._attribute_id in LOCAL_SENSORS:
+            return True
+        return self._conga_client.is_available()
+
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
         """Get the next bus information."""
         try:
             self._conga_client.update_shadows(self._sn)
             state_all = self._conga_client.get_status()
-            if self._dustbin_meter is not None:
+            # Feeding a stale cloud snapshot would count old areas again.
+            if self._dustbin_meter is not None and self._conga_client.is_available():
                 self._dustbin_meter.update(self._sn, state_all)
 
             if self._attribute_id == "statusLabel":

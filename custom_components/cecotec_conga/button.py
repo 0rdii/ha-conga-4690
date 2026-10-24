@@ -70,6 +70,11 @@ class CongaEntity(Entity):
     def brand(self):
         return BRAND
 
+    @property
+    def available(self) -> bool:
+        """Unavailable while the robot is not reporting live status."""
+        return self._conga_client.is_available()
+
     async def async_added_to_hass(self) -> None:
         self._enabled = True
 
@@ -115,7 +120,7 @@ class CongaVacuumStartButton(ButtonEntity, CongaEntity):
 
     @property
     def available(self) -> bool:
-        return self._available
+        return self._available and self._conga_client.is_available()
 
     def update(self) -> None:
         try:
@@ -176,7 +181,7 @@ class CongaVacuumRoomButton(ButtonEntity, CongaEntity):
 
     @property
     def available(self) -> bool:
-        return self._available
+        return self._available and self._conga_client.is_available()
 
     def update(self) -> None:
         self._available = _is_robot_available_to_start(self._conga_client, self._sn)
@@ -218,7 +223,7 @@ class CongaVacuumStopButton(ButtonEntity, CongaEntity):
 
     @property
     def available(self) -> bool:
-        return self._available
+        return self._available and self._conga_client.is_available()
 
     def update(self) -> None:
         self._available = _current_mode(self._conga_client, self._sn) in ACTIVE_MODES
@@ -254,7 +259,7 @@ class CongaVacuumHomeButton(ButtonEntity, CongaEntity):
 
     @property
     def available(self) -> bool:
-        return self._available
+        return self._available and self._conga_client.is_available()
 
     def update(self) -> None:
         self._available = _current_mode(self._conga_client, self._sn) not in {"charge", "fullcharge"}
@@ -289,6 +294,11 @@ class CongaVacuumDustBinResetButton(ButtonEntity, CongaEntity):
     @property
     def icon(self) -> str:
         return "mdi:delete-empty"
+
+    @property
+    def available(self) -> bool:
+        # Local counter: works even while the robot is offline.
+        return True
 
     async def async_press(self) -> None:
         if self._dustbin_meter is None:

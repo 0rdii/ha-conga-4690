@@ -65,6 +65,9 @@ FAULT_ROBOT_CHARGE_FINISH = 2105
 
 DEFAULT_TIMEOUT = 20
 TRANSIENT_START_ERROR_SECONDS = 30
+# Without a live status from the robot for this long, entities report unavailable
+# instead of showing the last snapshot cached by the cloud.
+LIVE_STATUS_MAX_AGE_SECONDS = 120
 
 
 class CongaError(RuntimeError):
@@ -112,6 +115,8 @@ class Conga:
         self._devices: list[Device] = []
         self._shadow: dict[str, Any] = {}
         self._last_shadow_update = 0.0
+        self._last_live_status = 0.0
+        self._last_live_raw: dict[str, Any] = {}
         self._optimistic_mode: str | None = None
         self._optimistic_mode_until = 0.0
         self._plans: dict[str, dict[str, Any]] = {}
@@ -160,7 +165,14 @@ class Conga:
             }
         )
         status = self._extract_status(response)
-        if not status:
+        if status:
+            _LOGGER.debug("Conga polled status: %s", status)
+            # A polled status is a full snapshot: it becomes the new base.
+            self._last_live_raw = dict(status)
+            self._last_live_status = time.time()
+        else:
+            # The robot did not answer; the bind list only carries the cloud's
+            # last cached snapshot, which can be days old.
             self.list_vacuums()
             device = self._device_for_sn(sn)
         self._shadow = self._normalize_status(status, device)
@@ -170,6 +182,13 @@ class Conga:
 
     def get_status(self) -> dict[str, Any]:
         return self._shadow
+
+    def is_available(self) -> bool:
+        """Return True while the robot keeps reporting live status."""
+        return (
+            bool(self._shadow)
+            and time.time() - self._last_live_status < LIVE_STATUS_MAX_AGE_SECONDS
+        )
 
     def start(self, sn: str, fan_speed: int = 1) -> None:
         self.set_fan_speed(sn, fan_speed)
@@ -512,7 +531,23 @@ class Conga:
         if status:
             device = self._device_for_robot_id(_to_int(status.get("devid") or status.get("did")))
             if device is not None:
+                _LOGGER.debug("Conga pushed status: %s", status)
+                status = self._merge_with_last_status(status)
                 self._shadow = self._normalize_status(status, device)
+                self._last_live_status = time.time()
+
+    def _merge_with_last_status(self, status: dict[str, Any]) -> dict[str, Any]:
+        """Overlay a pushed, possibly partial status on the last polled one.
+
+        Pushed updates may omit fields such as chargeStatus or faultCode.
+        Replacing the whole status with them made a docked robot flap between
+        "charge" and "idle" every few seconds. The next poll (every few seconds)
+        replaces the base again, so a field the robot stopped sending cannot
+        linger.
+        """
+        merged = {**self._last_live_raw, **status}
+        self._last_live_raw = merged
+        return merged
 
     def _device_for_sn(self, sn: str) -> Device:
         if not self._devices:

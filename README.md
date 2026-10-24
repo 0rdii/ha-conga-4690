@@ -55,9 +55,13 @@ The `tools` folder includes optional SSH utilities for the robot. They do not co
 
 ### Cloud Watchdog
 
-Some Conga robots keep the local Linux system running but lose the cloud connection used by the official app and this integration. The watchdog is a small script installed on the robot that checks that cloud connection and reboots the robot only after repeated failures.
+Some Conga robots keep the local Linux system running but lose the cloud connection used by the official app and this integration. The watchdog is a small script installed on the robot that checks that cloud connection every minute. After 3 failed checks in a row it restarts the robot's main program (`RobotApp`); if `RobotApp` does not come back within 60 seconds, it reboots the robot.
 
-The watchdog avoids rebooting the robot while it is actively cleaning.
+Safety limits:
+
+- It only acts when the robot is docked or idle. While cleaning, returning to base, stuck or in error it leaves the robot alone.
+- At most 3 recoveries per hour.
+- Its log is kept in `/mnt/UDISK/log/conga_cloud_watchdog.log`, so it survives reboots.
 
 ### Windows Step By Step
 

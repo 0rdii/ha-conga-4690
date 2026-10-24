@@ -83,6 +83,11 @@ class CongaDustBinLimitNumber(NumberEntity, CongaEntity):
     def icon(self) -> str:
         return "mdi:vector-square"
 
+    @property
+    def available(self) -> bool:
+        # Local setting: editable even while the robot is offline.
+        return True
+
     async def async_set_native_value(self, value: float) -> None:
         await self._dustbin_meter.async_set_limit_m2(self._sn, value)
         self.async_write_ha_state()

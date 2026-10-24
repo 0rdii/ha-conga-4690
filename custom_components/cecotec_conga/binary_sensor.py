@@ -75,6 +75,11 @@ class CongaVacuumBinarySensor(BinarySensorEntity, CongaEntity):
     def device_class(self) -> str:
         return self._device_class
 
+    @property
+    def available(self) -> bool:
+        # Connectivity must stay readable precisely when the robot is offline.
+        return True
+
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
         """Get the next bus information."""
