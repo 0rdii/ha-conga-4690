@@ -70,13 +70,11 @@ Safety limits:
 3. Open the `tools` folder.
 4. Double-click `install_watchdog_windows.bat`.
 5. Enter the robot IP address when asked.
-6. Enter the SSH user. Press Enter to use the default user, `root`.
-7. Enter the SSH password, or just press Enter to try the factory default passwords listed below.
-8. Wait until the script says `Watchdog installed.`
+6. Wait until the script says `Watchdog installed.` and `Watchdog running`.
 
-The Windows launcher uses Python if it is already installed. If the Python dependency `paramiko` is missing, the script tries to install it automatically.
+The Windows launcher uses Python if it is already installed, installs the `paramiko` version the robot needs, and logs in as `root` with the factory default password of the 4690 family. If you changed the robot password, edit `SSH_PASSWORD` at the top of the `.bat` file.
 
-To remove the watchdog later, double-click `remove_watchdog_windows.bat` and enter the same IP, user, and password.
+To remove the watchdog later, double-click `remove_watchdog_windows.bat` and enter the same IP.
 
 ### Command Line
 
@@ -107,7 +105,7 @@ If neither password works, the robot may have a custom password, SSH may not be 
 
 ## Notes
 
-- The cloud only reports the current cleaning session. "Total cleaned area" and "Total clean time" are accumulated and stored by Home Assistant, starting from the moment you install v1.0.5.
+- The cloud only reports the current cleaning session. "Total cleaned area" and "Total clean time" are accumulated and stored by Home Assistant, starting from the moment you install v1.0.4.
 - Room cleaning buttons are intentionally not exposed in this release because the cloud API behavior is not reliable enough yet.
 - Map rendering is not included in this release.
 - This integration has been tested with a Cecotec Conga 4690.

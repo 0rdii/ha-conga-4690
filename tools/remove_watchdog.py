@@ -73,12 +73,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Remove Conga cloud watchdog")
     parser.add_argument("--host", help="Robot IP or hostname")
     parser.add_argument("--user", default="root", help="SSH user, default: root")
+    parser.add_argument("--password", help="SSH password; asked interactively if omitted")
     args = parser.parse_args()
 
     paramiko = ensure_paramiko()
 
     host = args.host or input("Robot IP/hostname: ").strip()
-    password = getpass(f"SSH password for {args.user}@{host} (Enter = try factory defaults): ")
+    password = args.password
+    if password is None:
+        password = getpass(f"SSH password for {args.user}@{host} (Enter = try factory defaults): ")
     ssh = connect(paramiko, host, args.user, password)
 
     try:
