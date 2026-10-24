@@ -8,6 +8,6 @@
     "documentation": "https://github.com/0rdii/ha-conga-4690",
     "iot_class": "cloud_polling",
     "issue_tracker": "https://github.com/0rdii/ha-conga-4690/issues",
-    "requirements": ["requests>=2.31.0", "websocket-client>=1.7.0"],
-    "version": "1.0.5"
+    "requirements": ["websocket-client>=1.7.0"],
+    "version": "1.0.6"
 }
