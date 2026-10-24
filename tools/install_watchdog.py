@@ -189,6 +189,18 @@ def ensure_paramiko():
     sys.exit(subprocess.call([sys.executable] + sys.argv))
 
 
+WATCHDOG_STATUS_COMMAND = r"""
+sleep 2
+pid="$(cat /tmp/conga_cloud_watchdog.pid 2>/dev/null)"
+if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    echo "Watchdog running (pid $pid)"
+else
+    echo "WARNING: watchdog is not running"
+fi
+tail -n 3 /mnt/UDISK/log/conga_cloud_watchdog.log 2>/dev/null
+"""
+
+
 def connect(paramiko, host: str, user: str, password: str):
     """Log in with the given password, or with the factory defaults if empty."""
     candidates = [password] if password else list(DEFAULT_PASSWORDS)
@@ -243,7 +255,9 @@ def main() -> int:
         print(run(ssh, "/etc/init.d/conga_cloud_watchdog stop >/dev/null 2>&1 || true"))
         print(run(ssh, "/etc/init.d/conga_cloud_watchdog enable"))
         print(run(ssh, "/etc/init.d/conga_cloud_watchdog start"))
-        print(run(ssh, "ps | grep conga_cloud_watchdog | grep -v grep || true"))
+        # Plain `ps` on the robot only lists processes of the current session,
+        # so check the daemon through its pid file instead.
+        print(run(ssh, WATCHDOG_STATUS_COMMAND))
     finally:
         ssh.close()
 

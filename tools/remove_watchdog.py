@@ -89,7 +89,7 @@ rm -f /etc/init.d/conga_cloud_watchdog
 rm -f /etc/rc.d/*conga_cloud_watchdog*
 rm -f /mnt/UDISK/bin/conga_cloud_watchdog.sh
 rm -f /tmp/conga_cloud_watchdog.pid
-ps | grep conga_cloud_watchdog | grep -v grep || true
+ps w | grep conga_cloud_watchdog | grep -v grep || true
 """
         print(run(ssh, command))
     finally:
