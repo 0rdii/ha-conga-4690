@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 from getpass import getpass
+import importlib
+import site
 import subprocess
 import sys
 
@@ -168,6 +170,9 @@ def ensure_paramiko():
         print("Trying to install it automatically with pip...")
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "paramiko"])
+            # A fresh user site-packages dir is not on sys.path until restart.
+            site.addsitedir(site.getusersitepackages())
+            importlib.invalidate_caches()
             import paramiko  # type: ignore
 
             return paramiko
