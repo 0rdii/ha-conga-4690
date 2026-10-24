@@ -489,7 +489,7 @@ class Conga:
             self._ws = websocket.create_connection(
                 self._ws_url,
                 timeout=DEFAULT_TIMEOUT,
-                sslopt={"cert_reqs": ssl.CERT_NONE},
+                sslopt={"cert_reqs": ssl.CERT_REQUIRED},
             )
             self._logged_in = False
 

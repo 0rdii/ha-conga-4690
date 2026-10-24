@@ -54,7 +54,7 @@ class CongaVacuumBinarySensor(BinarySensorEntity, CongaEntity):
         self._state = None
         self._attribute_id = sensor['id']
         self._device_class = sensor['device_class']
-        self._unique_id = f"{self._device_name}_{sensor['id']}"
+        self._unique_id = f"{sn}_{sensor['id']}"
         CongaEntity.__init__(self, conga_data, device_name, sn)
         BinarySensorEntity.__init__(self)
 

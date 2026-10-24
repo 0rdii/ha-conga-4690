@@ -47,7 +47,7 @@ class CongaDustBinLimitNumber(NumberEntity, CongaEntity):
             if lang == "es"
             else f"{device_name} Dust bin threshold"
         )
-        self._unique_id = f"{device_name}_dust_bin_threshold"
+        self._unique_id = f"{sn}_dust_bin_threshold"
         CongaEntity.__init__(self, conga_data, device_name, sn)
         NumberEntity.__init__(self)
 

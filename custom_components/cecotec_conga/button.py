@@ -100,7 +100,7 @@ class CongaVacuumStartButton(ButtonEntity, CongaEntity):
             "Iniciar limpieza" if lang == "es" else "Start cleaning",
         )
         self._sn = sn
-        self._unique_id = f"{self._device_name}_start_cleaning"
+        self._unique_id = f"{sn}_start_cleaning"
         self._available = True
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
@@ -162,7 +162,7 @@ class CongaVacuumRoomButton(ButtonEntity, CongaEntity):
             f"Limpiar {room_label}" if lang == "es" else f"Clean {room_label}",
         )
         self._sn = sn
-        self._unique_id = f"{self._device_name}_room_{room_name}"
+        self._unique_id = f"{sn}_room_{room_name}"
         self._available = True
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
@@ -204,7 +204,7 @@ class CongaVacuumStopButton(ButtonEntity, CongaEntity):
         self._device_name = device_name
         self._name = _format_name(device_name, "Detener limpieza" if lang == "es" else "Stop cleaning")
         self._sn = sn
-        self._unique_id = f"{self._device_name}_stop_cleaning"
+        self._unique_id = f"{sn}_stop_cleaning"
         self._available = False
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
@@ -240,7 +240,7 @@ class CongaVacuumHomeButton(ButtonEntity, CongaEntity):
         self._device_name = device_name
         self._name = _format_name(device_name, "Volver a base" if lang == "es" else "Return to dock")
         self._sn = sn
-        self._unique_id = f"{self._device_name}_return_to_dock"
+        self._unique_id = f"{sn}_return_to_dock"
         self._available = True
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
@@ -279,7 +279,7 @@ class CongaVacuumDustBinResetButton(ButtonEntity, CongaEntity):
             "Deposito vaciado" if lang == "es" else "Dust bin emptied",
         )
         self._sn = sn
-        self._unique_id = f"{self._device_name}_dust_bin_emptied"
+        self._unique_id = f"{sn}_dust_bin_emptied"
         CongaEntity.__init__(self, conga_data, device_name, sn)
         ButtonEntity.__init__(self)
 

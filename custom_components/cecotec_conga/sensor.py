@@ -16,7 +16,8 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=5)
 
 _LOGGER = logging.getLogger(__name__)
 
-LOCAL_SENSORS = {"dustBinArea", "dustBinStatus"}
+# Computed and stored by Home Assistant, so available even while offline.
+LOCAL_SENSORS = {"dustBinArea", "dustBinStatus", "allArea", "allTime"}
 
 sensors = [
     {
@@ -143,7 +144,7 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
         self._sn = sn
         self._state = None
         self._attribute_id = sensor['id']
-        self._unique_id = f"{self._device_name}_{sensor['id']}"
+        self._unique_id = f"{sn}_{sensor['id']}"
         self._lang = lang
         self._attr_entity_registry_enabled_default = sensor.get("enabled", True)
         CongaEntity.__init__(self, conga_data, device_name, sn)
@@ -179,7 +180,6 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
 
     @property
     def available(self) -> bool:
-        # The dust bin counter is local, so it stays available offline.
         if self._attribute_id in LOCAL_SENSORS:
             return True
         return self._conga_client.is_available()
@@ -198,6 +198,10 @@ class CongaVacuumPlanButton(SensorEntity, CongaEntity):
                 self._state = _status_label(state_all.get("mode"), self._lang)
             elif self._attribute_id == "cleaningRoomId":
                 self._state = _room_label(state_all.get("cleaningRoomId"), self._lang)
+            elif self._attribute_id == "allArea" and self._dustbin_meter is not None:
+                self._state = self._dustbin_meter.total_area(self._sn)
+            elif self._attribute_id == "allTime" and self._dustbin_meter is not None:
+                self._state = self._dustbin_meter.total_time(self._sn)
             elif self._attribute_id == "dustBinArea" and self._dustbin_meter is not None:
                 self._state = self._dustbin_meter.area_since_empty(self._sn)
             elif self._attribute_id == "dustBinStatus" and self._dustbin_meter is not None:

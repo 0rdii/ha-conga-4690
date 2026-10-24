@@ -16,7 +16,11 @@ STORAGE_VERSION = 1
 
 
 class DustBinMeter:
-    """Virtual dust bin counter based on cleaned square meters."""
+    """Virtual dust bin counter based on cleaned square meters.
+
+    It also keeps lifetime totals of cleaned area and time, because the cloud
+    only reports the current session.
+    """
 
     def __init__(
         self,
@@ -39,6 +43,7 @@ class DustBinMeter:
         robot = self._robot(sn)
         mode = status.get("mode")
         area = _to_float(status.get("cleanArea"))
+        clean_time = _to_float(status.get("cleanTime"))
         was_active = bool(robot.get("session_active"))
         is_active = mode in ACTIVE_MODES
         changed = False
@@ -47,8 +52,15 @@ class DustBinMeter:
             if not was_active:
                 robot["session_active"] = True
                 robot["session_area"] = 0.0
+                robot["session_time"] = 0.0
                 changed = True
-            if area < _to_float(robot.get("last_seen_area")):
+            if clean_time > _to_float(robot.get("session_time")):
+                robot["session_time"] = clean_time
+                changed = True
+            # A drop mid-session means the robot reset its counter. At session
+            # start a lower value is just the new session, while last_seen_area
+            # still holds the previous one (the robot keeps reporting it docked).
+            if was_active and area < _to_float(robot.get("last_seen_area")):
                 robot["session_area"] = max(
                     _to_float(robot.get("session_area")),
                     _to_float(robot.get("last_seen_area")),
@@ -64,8 +76,17 @@ class DustBinMeter:
                     _to_float(robot.get("area_since_empty")) + session_area,
                     2,
                 )
+                robot["total_area"] = round(
+                    _to_float(robot.get("total_area")) + session_area,
+                    2,
+                )
+            robot["total_time"] = round(
+                _to_float(robot.get("total_time")) + _to_float(robot.get("session_time")),
+                1,
+            )
             robot["session_active"] = False
             robot["session_area"] = 0.0
+            robot["session_time"] = 0.0
             changed = True
 
         if robot.get("last_mode") != mode:
@@ -84,6 +105,20 @@ class DustBinMeter:
             _to_float(robot.get("area_since_empty"))
             + _to_float(robot.get("session_area")),
             2,
+        )
+
+    def total_area(self, sn: str) -> float:
+        robot = self._robot(sn)
+        return round(
+            _to_float(robot.get("total_area")) + _to_float(robot.get("session_area")),
+            2,
+        )
+
+    def total_time(self, sn: str) -> float:
+        robot = self._robot(sn)
+        return round(
+            _to_float(robot.get("total_time")) + _to_float(robot.get("session_time")),
+            1,
         )
 
     def is_full_recommended(self, sn: str) -> bool:
@@ -109,6 +144,9 @@ class DustBinMeter:
         robot = robots.setdefault(str(sn), {})
         robot.setdefault("area_since_empty", 0.0)
         robot.setdefault("session_area", 0.0)
+        robot.setdefault("session_time", 0.0)
+        robot.setdefault("total_area", 0.0)
+        robot.setdefault("total_time", 0.0)
         robot.setdefault("session_active", False)
         robot.setdefault("last_seen_area", 0.0)
         robot.setdefault("last_mode", None)

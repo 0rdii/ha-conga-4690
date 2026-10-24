@@ -2,7 +2,7 @@ import logging
 
 import voluptuous as vol
 
-from .conga import Conga
+from .conga import Conga, CongaError
 from .const import (
     CONF_USERNAME,
     CONF_PASSWORD,
@@ -10,7 +10,10 @@ from .const import (
 )
 from .dustbin import DustBinMeter
 
+from homeassistant.core import callback
+from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers import entity_registry as er
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["vacuum", "select", "button", "sensor", "binary_sensor", "number"]
@@ -55,11 +58,19 @@ async def async_setup_entry(hass, entry):
 
     conga_client = Conga(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
     devices = entry.data["devices"]
-    if not devices:
-        devices = await hass.async_add_executor_job(conga_client.list_vacuums)
-    if devices:
-        await hass.async_add_executor_job(conga_client.update_shadows, devices[0]["sn"])
-    plans = await hass.async_add_executor_job(conga_client.list_plans)
+    try:
+        if not devices:
+            devices = await hass.async_add_executor_job(conga_client.list_vacuums)
+        if devices:
+            await hass.async_add_executor_job(conga_client.update_shadows, devices[0]["sn"])
+        plans = await hass.async_add_executor_job(conga_client.list_plans)
+    except CongaError as exc:
+        # The cloud is down or slow: let Home Assistant retry the setup later
+        # instead of leaving the integration failed until a manual reload.
+        await hass.async_add_executor_job(conga_client.close)
+        raise ConfigEntryNotReady(f"Cecotec cloud not reachable: {exc}") from exc
+
+    await _async_migrate_unique_ids(hass, entry, devices)
     dustbin_meter = await DustBinMeter.async_create(hass, entry.entry_id)
 
     hass.data[DOMAIN][entry.entry_id] = {
@@ -118,6 +129,31 @@ async def async_unload_entry(hass, entry):
         if not hass.data[DOMAIN]:
             hass.services.async_remove(DOMAIN, SERVICE_CREATE_ROOM_PLAN)
     return unload_ok
+
+
+async def _async_migrate_unique_ids(hass, entry, devices):
+    """Move unique IDs from "<robot name>_<key>" to "<serial>_<key>".
+
+    Older versions keyed most entities on the robot name, so renaming the robot
+    in the Cecotec app created new entities and broke automations. Updating the
+    registry in place keeps the existing entity IDs and their history.
+    """
+    prefixes = [
+        (f"{device['note_name']}_", f"{device['sn']}_")
+        for device in devices
+        if device.get("note_name") and device.get("sn")
+    ]
+
+    @callback
+    def _migrate(entity_entry):
+        for old_prefix, new_prefix in prefixes:
+            unique_id = entity_entry.unique_id
+            if unique_id.startswith(old_prefix) and not unique_id.startswith(new_prefix):
+                return {"new_unique_id": new_prefix + unique_id[len(old_prefix):]}
+        return None
+
+    # Must finish before the platforms add entities with the new IDs.
+    await er.async_migrate_entries(hass, entry.entry_id, _migrate)
 
 
 def _parse_day_time(value):

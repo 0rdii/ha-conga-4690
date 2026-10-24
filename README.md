@@ -107,6 +107,7 @@ If neither password works, the robot may have a custom password, SSH may not be 
 
 ## Notes
 
+- The cloud only reports the current cleaning session. "Total cleaned area" and "Total clean time" are accumulated and stored by Home Assistant, starting from the moment you install v1.0.5.
 - Room cleaning buttons are intentionally not exposed in this release because the cloud API behavior is not reliable enough yet.
 - Map rendering is not included in this release.
 - This integration has been tested with a Cecotec Conga 4690.
