@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import argparse
 from getpass import getpass
-import importlib
-import site
 import subprocess
 import sys
 
@@ -160,26 +158,31 @@ stop() {
 """
 
 
+# The robot's dropbear only offers ssh-rsa host keys, which recent paramiko
+# releases (5.x) no longer support.
+PARAMIKO_REQUIREMENT = "paramiko<4"
+
+
 def ensure_paramiko():
     try:
         import paramiko  # type: ignore
 
-        return paramiko
+        if "ssh-rsa" in getattr(paramiko.Transport, "_key_info", {}):
+            return paramiko
+        print(f"paramiko {paramiko.__version__} cannot connect to the robot (no ssh-rsa support).")
     except ImportError:
         print("Missing dependency: paramiko")
-        print("Trying to install it automatically with pip...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "paramiko"])
-            # A fresh user site-packages dir is not on sys.path until restart.
-            site.addsitedir(site.getusersitepackages())
-            importlib.invalidate_caches()
-            import paramiko  # type: ignore
 
-            return paramiko
-        except Exception as exc:
-            print(f"Automatic install failed: {exc}")
-            print("Install it manually with: python -m pip install --user paramiko")
-            sys.exit(1)
+    print(f"Installing {PARAMIKO_REQUIREMENT} with pip...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", PARAMIKO_REQUIREMENT])
+    except Exception as exc:
+        print(f"Automatic install failed: {exc}")
+        print(f'Install it manually with: python -m pip install --user "{PARAMIKO_REQUIREMENT}"')
+        sys.exit(1)
+
+    # Start again in a fresh interpreter so the newly installed version is used.
+    sys.exit(subprocess.call([sys.executable] + sys.argv))
 
 
 def run(ssh, command: str) -> str:
@@ -208,10 +211,10 @@ def main() -> int:
     parser.add_argument("--user", default="root", help="SSH user, default: root")
     args = parser.parse_args()
 
+    paramiko = ensure_paramiko()
+
     host = args.host or input("Robot IP/hostname: ").strip()
     password = getpass(f"SSH password for {args.user}@{host}: ")
-
-    paramiko = ensure_paramiko()
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
