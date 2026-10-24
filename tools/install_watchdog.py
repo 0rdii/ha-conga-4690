@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Install the Conga cloud watchdog on a robot.
 
-The script intentionally does not hard-code an IP address or password. Run it
-from a trusted machine on the same network as the robot:
+The script does not hard-code an IP address. If no password is entered it tries
+the known factory default passwords. Run it from a trusted machine on the same
+network as the robot:
 
     python tools/install_watchdog.py --host 192.168.1.75
 """
@@ -162,6 +163,9 @@ stop() {
 # releases (5.x) no longer support.
 PARAMIKO_REQUIREMENT = "paramiko<4"
 
+# Known factory default root passwords, also listed in the README.
+DEFAULT_PASSWORDS = ("@3I#sc$RD%xm^2S&", "3irobotics")
+
 
 def ensure_paramiko():
     try:
@@ -183,6 +187,21 @@ def ensure_paramiko():
 
     # Start again in a fresh interpreter so the newly installed version is used.
     sys.exit(subprocess.call([sys.executable] + sys.argv))
+
+
+def connect(paramiko, host: str, user: str, password: str):
+    """Log in with the given password, or with the factory defaults if empty."""
+    candidates = [password] if password else list(DEFAULT_PASSWORDS)
+    for candidate in candidates:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(host, username=user, password=candidate, timeout=10, look_for_keys=False, allow_agent=False)
+            return ssh
+        except paramiko.AuthenticationException:
+            ssh.close()
+    print("Authentication failed: wrong password, or this IP is not the robot.")
+    sys.exit(1)
 
 
 def run(ssh, command: str) -> str:
@@ -214,12 +233,10 @@ def main() -> int:
     paramiko = ensure_paramiko()
 
     host = args.host or input("Robot IP/hostname: ").strip()
-    password = getpass(f"SSH password for {args.user}@{host}: ")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    password = getpass(f"SSH password for {args.user}@{host} (Enter = try factory defaults): ")
+    ssh = connect(paramiko, host, args.user, password)
 
     try:
-        ssh.connect(host, username=args.user, password=password, timeout=10, look_for_keys=False, allow_agent=False)
         print(run(ssh, "mkdir -p /mnt/UDISK/bin"))
         write_file(ssh, "/mnt/UDISK/bin/conga_cloud_watchdog.sh", WATCHDOG_SCRIPT)
         write_file(ssh, "/etc/init.d/conga_cloud_watchdog", INIT_SCRIPT)

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Remove the Conga cloud watchdog from a robot.
 
-The script intentionally does not hard-code an IP address or password:
+The script does not hard-code an IP address. If no password is entered it tries
+the known factory default passwords:
 
     python tools/remove_watchdog.py --host 192.168.1.75
 """
@@ -17,6 +18,9 @@ import sys
 # The robot's dropbear only offers ssh-rsa host keys, which recent paramiko
 # releases (5.x) no longer support.
 PARAMIKO_REQUIREMENT = "paramiko<4"
+
+# Known factory default root passwords, also listed in the README.
+DEFAULT_PASSWORDS = ("@3I#sc$RD%xm^2S&", "3irobotics")
 
 
 def ensure_paramiko():
@@ -41,6 +45,21 @@ def ensure_paramiko():
     sys.exit(subprocess.call([sys.executable] + sys.argv))
 
 
+def connect(paramiko, host: str, user: str, password: str):
+    """Log in with the given password, or with the factory defaults if empty."""
+    candidates = [password] if password else list(DEFAULT_PASSWORDS)
+    for candidate in candidates:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(host, username=user, password=candidate, timeout=10, look_for_keys=False, allow_agent=False)
+            return ssh
+        except paramiko.AuthenticationException:
+            ssh.close()
+    print("Authentication failed: wrong password, or this IP is not the robot.")
+    sys.exit(1)
+
+
 def run(ssh, command: str) -> str:
     _, stdout, stderr = ssh.exec_command(command, timeout=30)
     out = stdout.read().decode("utf-8", "replace")
@@ -59,12 +78,10 @@ def main() -> int:
     paramiko = ensure_paramiko()
 
     host = args.host or input("Robot IP/hostname: ").strip()
-    password = getpass(f"SSH password for {args.user}@{host}: ")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    password = getpass(f"SSH password for {args.user}@{host} (Enter = try factory defaults): ")
+    ssh = connect(paramiko, host, args.user, password)
 
     try:
-        ssh.connect(host, username=args.user, password=password, timeout=10, look_for_keys=False, allow_agent=False)
         command = r"""
 /etc/init.d/conga_cloud_watchdog stop >/dev/null 2>&1 || true
 /etc/init.d/conga_cloud_watchdog disable >/dev/null 2>&1 || true

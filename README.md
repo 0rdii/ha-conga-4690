@@ -51,7 +51,7 @@ The cloud service may allow only one active session at a time. If the mobile app
 
 ## Robot Maintenance Tools
 
-The `tools` folder includes optional SSH utilities for the robot. They do not contain a fixed IP address or password and are not required for the Home Assistant integration to work.
+The `tools` folder includes optional SSH utilities for the robot. They do not contain a fixed IP address; if you leave the password empty they try the known factory default passwords listed below. They are not required for the Home Assistant integration to work.
 
 ### Cloud Watchdog
 
@@ -71,7 +71,7 @@ Safety limits:
 4. Double-click `install_watchdog_windows.bat`.
 5. Enter the robot IP address when asked.
 6. Enter the SSH user. Press Enter to use the default user, `root`.
-7. Enter the SSH password. Try the passwords listed below for your model.
+7. Enter the SSH password, or just press Enter to try the factory default passwords listed below.
 8. Wait until the script says `Watchdog installed.`
 
 The Windows launcher uses Python if it is already installed. If the Python dependency `paramiko` is missing, the script tries to install it automatically.
