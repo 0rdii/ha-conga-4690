@@ -170,6 +170,12 @@ class Conga:
             # A polled status is a full snapshot: it becomes the new base.
             self._last_live_raw = dict(status)
             self._last_live_status = time.time()
+        elif self.is_available():
+            # The 4690 answers get_status with a push (handled in _handle_push),
+            # so the reply itself is empty. Keep the live shadow instead of
+            # replacing it with the cloud's cached snapshot every poll.
+            self._last_shadow_update = time.time()
+            return self._shadow
         else:
             # The robot did not answer; the bind list only carries the cloud's
             # last cached snapshot, which can be days old.
@@ -595,13 +601,14 @@ class Conga:
         if not status and isinstance(raw_stats, dict):
             status = raw_stats.get("data") or raw_stats
 
-        battery = _normalize_battery(status.get("battary") or status.get("battery"))
+        raw_battery = _to_int(status.get("battary") or status.get("battery"))
+        battery = _normalize_battery(raw_battery)
         mode = _to_int(status.get("workMode"), default=_to_int(status.get("mode"), default=-1))
         clean_type = _to_int(status.get("type"), default=-1)
         charge_status = _to_int(status.get("chargeStatus"), default=0)
         fault = _to_int(status.get("faultCode") or status.get("fault"), default=0)
 
-        normalized_mode = _status_name(mode, clean_type, charge_status, fault)
+        normalized_mode = _status_name(mode, clean_type, charge_status, fault, raw_battery)
         if normalized_mode == "error" and time.time() < self._optimistic_mode_until:
             normalized_mode = self._optimistic_mode or normalized_mode
 
@@ -731,7 +738,13 @@ def _normalize_room_name(value: Any) -> str:
     return aliases.get(normalized, room)
 
 
-def _status_name(work_mode: int, clean_type: int, charge_status: int, fault: int) -> str:
+def _status_name(
+    work_mode: int,
+    clean_type: int,
+    charge_status: int,
+    fault: int,
+    raw_battery: int = 0,
+) -> str:
     if fault == FAULT_ROBOT_CHARGING:
         return "charge"
     if fault == FAULT_ROBOT_CHARGE_FINISH:
@@ -744,6 +757,11 @@ def _status_name(work_mode: int, clean_type: int, charge_status: int, fault: int
         return "backcharge"
     if charge_status in (2, 3):
         return "charge"
+    # The robot adds 100 to the battery level while it sits on the charger.
+    # Docked, it alternates pushes with and without the charging fields; this
+    # keeps the ones without them from flipping the state to idle.
+    if raw_battery > 100 and work_mode not in (VALUE_START, VALUE_PAUSE):
+        return "fullcharge" if raw_battery >= 200 else "charge"
     if work_mode == VALUE_START:
         return "sweep"
     if work_mode == VALUE_PAUSE:

@@ -212,6 +212,8 @@ class CongaVacuum(StateVacuumEntity, CongaEntity):
             return STATE_IDLE
         elif self._state == "shutdown":
             return STATE_OFF
+        elif self._state == "error":
+            return STATE_ERROR
         else:
             _LOGGER.warning(f"Unknown status: {self._state}")
             return STATE_ERROR
