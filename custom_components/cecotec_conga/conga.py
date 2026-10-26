@@ -65,8 +65,8 @@ FAULT_ROBOT_CHARGE_FINISH = 2105
 
 DEFAULT_TIMEOUT = 20
 TRANSIENT_START_ERROR_SECONDS = 30
-# Without a live status from the robot for this long, entities report unavailable
-# instead of showing the last snapshot cached by the cloud.
+# Pushed statuses newer than this are trusted over the cloud's bind list
+# snapshot.
 LIVE_STATUS_MAX_AGE_SECONDS = 120
 
 
@@ -170,7 +170,7 @@ class Conga:
             # A polled status is a full snapshot: it becomes the new base.
             self._last_live_raw = dict(status)
             self._last_live_status = time.time()
-        elif self.is_available():
+        elif self._has_recent_live_status():
             # The 4690 answers get_status with a push (handled in _handle_push),
             # so the reply itself is empty. Keep the live shadow instead of
             # replacing it with the cloud's cached snapshot every poll.
@@ -190,11 +190,18 @@ class Conga:
         return self._shadow
 
     def is_available(self) -> bool:
-        """Return True while the robot keeps reporting live status."""
-        return (
-            bool(self._shadow)
-            and time.time() - self._last_live_status < LIVE_STATUS_MAX_AGE_SECONDS
-        )
+        """Return True while the robot reports status or the cloud sees it online.
+
+        Pushes do not always reach this session; the bind list snapshot is then
+        the only source, and its online flag is what tells a live robot (the
+        snapshot keeps updating) from a dead one (offline, snapshot frozen).
+        """
+        if not self._shadow:
+            return False
+        return self._has_recent_live_status() or bool(self._shadow.get("connected"))
+
+    def _has_recent_live_status(self) -> bool:
+        return time.time() - self._last_live_status < LIVE_STATUS_MAX_AGE_SECONDS
 
     def start(self, sn: str, fan_speed: int = 1) -> None:
         self.set_fan_speed(sn, fan_speed)
