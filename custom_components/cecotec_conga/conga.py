@@ -62,6 +62,10 @@ FAULT_ROBOT_GLOBAL_GO_HOME = 2102
 FAULT_ROBOT_CHARGING = 2103
 FAULT_ROBOT_USER_GO_HOME = 2104
 FAULT_ROBOT_CHARGE_FINISH = 2105
+# Notices the app shows as plain messages (scheduled clean starting,
+# relocating, self check...). They are not faults: the state comes from the
+# work mode and charging fields instead.
+INFO_FAULT_CODES = {2100, 2101, 2106, 2107, 2108, 2109, 2110, 531}
 
 DEFAULT_TIMEOUT = 20
 TRANSIENT_START_ERROR_SECONDS = 30
@@ -758,7 +762,7 @@ def _status_name(
         return "fullcharge"
     if fault in (FAULT_ROBOT_GLOBAL_GO_HOME, FAULT_ROBOT_USER_GO_HOME):
         return "backcharge"
-    if fault:
+    if fault and fault not in INFO_FAULT_CODES:
         return "error"
     if clean_type == MODE_BACK_CHARGE or charge_status == 1:
         return "backcharge"
